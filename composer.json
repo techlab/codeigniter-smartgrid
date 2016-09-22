@@ -1,0 +1,30 @@
+{
+    "name": "techlab/smartgrid",
+    "type": "codeigniter-library",
+	"description": "SmartGrid for CodeIgniter with Bootstrap",
+	"homepage": "http://techlaboratory.net/smartgrid",
+	"license": "MIT",
+	"support": {
+		"source": "https://github.com/techlab/codeigniter-smartgrid",
+        "issues": "https://github.com/techlab/codeigniter-smartgrid/issues",
+        "docs": "http://techlaboratory.net/smartgrid/documentation"
+	},
+    "keywords": [
+        "codeigniter",
+        "library",
+        "smartgrid",
+        "php",
+        "datagrid"
+    ],
+    "authors": [
+        {
+            "name": "Dipu Raj",
+            "email": "hello@techlaboratory.net",
+            "homepage": "http://dipuraj.me"
+        }
+    ],
+    "require": {
+        "php": ">=5.2.4",
+        "codeigniter/framework": "~3.0"
+    }
+}
