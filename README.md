@@ -27,7 +27,7 @@ $columns = array("employee_id"=>array("header"=>"Employee ID", "type"=>"label"),
         );        
         
 // Set the grid 
-$this->smartgrid->set_grid($sql, $columns, $config);
+$this->smartgrid->set_grid($sql, $columns);
 
 // Render the grid and assign to data array, so it can be print to on the view
 $data['grid_html'] = $this->smartgrid->render_grid();    
