@@ -4,6 +4,12 @@ SmartGrid focus on data display than data manipulation.
 We are starting with limited features to make the code very simple and robust, 
 yet we will be adding more feature on the go. The code is very simple and well documented, which make it easy for customization.
 
+Demos
+-----
+  + [Basic](http://techlaboratory.net/smartgrid/demo/example-smartgrid)
+  + [Array Datasource](http://techlaboratory.net/smartgrid/demo/example-array-grid)
+  + [with DataTables](http://techlaboratory.net/smartgrid/demo/example-smartgrid_and-datatables)
+
 Installation
 -----
 1. [Download](https://github.com/techlab/codeigniter-smartgrid/archive/master.zip) the source files
@@ -27,7 +33,7 @@ $columns = array("employee_id"=>array("header"=>"Employee ID", "type"=>"label"),
         );        
         
 // Set the grid 
-$this->smartgrid->set_grid($sql, $columns, $config);
+$this->smartgrid->set_grid($sql, $columns);
 
 // Render the grid and assign to data array, so it can be print to on the view
 $data['grid_html'] = $this->smartgrid->render_grid();    

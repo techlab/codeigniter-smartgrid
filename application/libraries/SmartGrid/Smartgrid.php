@@ -300,8 +300,8 @@ class Smartgrid {
                                         <small class="pull-left">'.(($field_value > 0) ? $field_value : "").'</small>
                                       </div>';    
                         }
-                        $html .= '<div class="progress xs" style="height: 10px;">
-                                    <div class="progress-bar" role="progressbar" aria-valuenow="'.$progress_value.'" aria-valuemin="0" aria-valuemax="'.$field_maximum_value.'" style="min-width: 1em; width: '.$progress_value.'%;"></div>
+                        $html .= '<div class="progress xs" style="height: 10px;" title="'.$field_value.'">
+                                    <div class="progress-bar" role="progressbar" aria-valuenow="'.$progress_value.'" aria-valuemin="0" aria-valuemax="'.$field_maximum_value.'" style="width: '.$progress_value.'%;"></div>
                                   </div>';
                         break;
                     case "enum":
@@ -326,7 +326,7 @@ class Smartgrid {
                         $html .= $this->get_relative_date($field_value);
                         break;
                     case "html":
-                        $html .= htmlentities($field_value);
+                        $html .= '<code>'.htmlentities($field_value).'</code>';
                         break;
                     case "link":
                         if(!empty($field_value)){
