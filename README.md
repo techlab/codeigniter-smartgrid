@@ -4,11 +4,19 @@ SmartGrid focus on data display than data manipulation.
 We are starting with limited features to make the code very simple and robust, 
 yet we will be adding more feature on the go. The code is very simple and well documented, which make it easy for customization.
 
++ [Homepage](http://techlaboratory.net/smartgrid)
++ [Documentation](http://techlaboratory.net/smartgrid/documentation)
+
 Demos
 -----
   + [Basic](http://techlaboratory.net/smartgrid/demo/example-smartgrid)
   + [Array Datasource](http://techlaboratory.net/smartgrid/demo/example-array-grid)
   + [with DataTables](http://techlaboratory.net/smartgrid/demo/example-smartgrid_and-datatables)
+
+Requirements
+-----
+  + [CodeIgniter 3.x](https://codeigniter.com/download)
+  + [Bootstrap 3+](http://getbootstrap.com/getting-started/#download)
 
 Installation
 -----
@@ -44,7 +52,8 @@ $this->load->view('example_smartgrid', $data);
 
 and then, on your view:
 ```html
-<!-- For styling, refer the bootstrap from CDN or from your server. Ignore this if you alredy have included in main view -->
+<!-- For styling, refer the bootstrap from CDN or from your server. 
+Ignore this if you already have included in main view -->
 
 <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css">
 ```
@@ -66,11 +75,12 @@ Limitations
   - Search, Sort, Themes, Export features are on pipeline
   - Database support: MySQL only for now 
   - Language support: English only for now
+  - Ajax is not support now
 
 Version
 -----
 **SmartGrid v0.6.1-beta**
-> Notice:- SmartGrid is still on beta version, usage on production eviorment is not recommented unless tested well. 
+> Notice:- SmartGrid is on beta version, usage on production environment is not recommended unless tested well. 
 > Please report issue at [github issues](https://github.com/techlab/codeigniter-smartgrid/issues/)
 
 
