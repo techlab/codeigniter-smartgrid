@@ -1,5 +1,7 @@
-# SmartGrid for CodeIgniter with Bootstrap
-A simple PHP datagrid control for CodeIgniter framework with Bootstrap. 
+# CodeIgniter SmartGrid
+### A simple PHP datagrid control for CodeIgniter with Bootstrap support
+
+
 SmartGrid focus on data display than data manipulation. 
 We are starting with limited features to make the code very simple and robust, 
 yet we will be adding more feature on the go. The code is very simple and well documented, which make it easy for customization.
@@ -79,7 +81,7 @@ Limitations
 
 Version
 -----
-**SmartGrid v0.6.1-beta**
+**SmartGrid v0.6.5-beta**
 > Notice:- SmartGrid is on beta version, usage on production environment is not recommended unless tested well. 
 > Please report issue at [github issues](https://github.com/techlab/codeigniter-smartgrid/issues/)
 

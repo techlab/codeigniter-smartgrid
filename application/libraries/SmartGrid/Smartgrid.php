@@ -1,9 +1,10 @@
 <?php
 /**
- * SmartGrid for CodeIgniter with Bootstrap
+ * CodeIgniter SmartGrid
+ * A simple PHP datagrid control for CodeIgniter with Bootstrap support
  * 
  * @package         SmartGrid
- * @version         v0.6.1-beta
+ * @version         v0.6.5-beta
  * @license         MIT License
  * @copyright       Copyright (c) Dipu Raj and TechLaboratory.net
  * @author          Dipu Raj 
@@ -32,12 +33,19 @@ class Smartgrid {
 	private $_config_auto_generate_columns  = false;
     // Enable/Disable paging
     private $_config_paging_enabled         = true;
-    // Paging toolbar position
-    private $_config_toolbar_position       = 'both'; // top/bottom/both/none
     // Grid rows per pages
     private $_config_page_size              = 10;
+    // Paging toolbar position
+    private $_config_toolbar_position       = 'both'; // top/bottom/both/none
     // Grid name
-    private $_config_grid_name              = 'sg_1';
+    private $_config_grid_name              = '';
+    // Grid form method
+    private $_config_grid_form_method       = 'GET';
+    // Show/Hide column header
+    private $_config_header_enabled         = true;
+    // Enable/Disable debug mode
+    private $_config_debug_mode             = false;
+    
     
     # CLASS VARIABLES
     
@@ -61,8 +69,13 @@ class Smartgrid {
     private $_page_row_count                = 0;
     // Grid page number
     private $_page_number                   = 1;
+    // Debug log
+    private $_debug_log                     = array();
+    // Error log
+    private $_error_log                     = array();
 
     # CONSTRUCTOR
+    
  	/**
 	 * __construct
 	 *
@@ -75,8 +88,19 @@ class Smartgrid {
     {
         // Get the CodeIgniter super-object
         $this->CI =& get_instance();
+        // Load url helper
         $this->CI->load->helper('url');
         
+        $this->set_debug_time('grid_start_time');
+        
+        // Load configuration from file if avaliable
+        $this->CI->load->config('smartgrid', TRUE, TRUE);
+        if (is_array($this->CI->config->item('smartgrid')))
+        {
+            $this->set_configs($this->CI->config->item('smartgrid'));
+        }
+        
+        // Load configuration from parameter if provided
         empty($config) OR $this->set_configs($config);
     }
     
@@ -136,13 +160,25 @@ class Smartgrid {
     {
         if(empty($data_or_sql)) { return false; }
         
+        $this->set_debug_time('set_start_time');
+        
         empty($config) OR $this->set_configs($config);
         
         $this->_current_url = current_url(); 
-        $this->_current_url .= $_SERVER['QUERY_STRING'] ? '?'.$_SERVER['QUERY_STRING'] : '';
+        //$this->_current_url .= $_SERVER['QUERY_STRING'] ? '?'.$_SERVER['QUERY_STRING'] : '';
         
+        $page_number = $this->CI->input->get_post($this->_config_grid_name.'page', TRUE);
+        $this->_page_number = isset($page_number) ? $page_number : 1;
+        
+        $this->set_debug_time('data_start_time');
+        // Set data
         $this->set_data($data_or_sql);
+        $this->set_debug_time('data_end_time');
+        
+        // Set columns
         $this->set_columns($columns);
+        
+        $this->set_debug_time('set_end_time');
         return true;
     }
     
@@ -155,6 +191,7 @@ class Smartgrid {
 	 */    
     public function render_grid()
     {
+        $this->set_debug_time('render_start_time');
         $paging_html = ($this->_config_paging_enabled === true) ? '<div class="panel-body no-margin" style="padding: 5px;">'.$this->get_toolbar().'</div>' : '';
         $html = '';
         if($this->_dataset && count($this->_dataset) > 0)
@@ -172,6 +209,14 @@ class Smartgrid {
         else
         {
             $html .= '<div class="panel panel-default"><div class="panel-body">No data to display</div></div>';    
+        }
+        
+        if($this->_config_debug_mode === true){
+            $this->set_debug_time('render_end_time');
+            $this->set_debug_time('grid_end_time');
+
+            $html .= "<br />";
+            $html .= $this->get_debug_info();
         }
         return $html;
     }
@@ -218,8 +263,6 @@ class Smartgrid {
 	 */    
     private function set_data($data_or_sql)
     {
-        $page_number = $this->CI->input->post($this->_config_grid_name.'_page_number');
-        $this->_page_number = isset($page_number) ? $page_number : $this->_page_number;
         $this->_page_number = $this->_page_number < 1 ? 1 : $this->_page_number;
         $this->_page_row_start = ($this->_page_number - 1) * $this->_config_page_size;
         
@@ -239,11 +282,17 @@ class Smartgrid {
             $query = $this->CI->db->query($sql);
             $this->_dataset = $query->result_array();
             $this->_page_row_count = $query->num_rows();
-        
+            
             $query2 = $this->CI->db->query("SELECT FOUND_ROWS() as RowCount");
             $this->_total_rows = $query2->row()->RowCount;
         }
         $this->_total_page = ceil($this->_total_rows / $this->_config_page_size);
+        
+        // Reset page number if requested page number doesn't exist in result
+        if($this->_total_page < $this->_page_number){
+            $this->_page_number = 1;
+            $this->set_data($data_or_sql);
+        }
     }
     
 	/**
@@ -255,12 +304,14 @@ class Smartgrid {
 	 */
     private function render_header()
     {
+        if($this->_config_header_enabled === false) { return ''; }
+         
         $html = '<thead><tr role="row">';
         foreach ($this->_columns as $field=>$c)
         {
-            $align = isset($c['align']) ? $c['align'] : '';
+            $header_align = isset($c['header_align']) ? $c['header_align'] : '';
             $width = isset($c['width']) ? $c['width'] : '';
-            $html .= '<th width="'.$width.'" align="'.$align.'">';  
+            $html .= '<th width="'.$width.'" align="'.$header_align.'" style="text-align: '.$header_align.'" >';  
             $html .= $c["header"];
             $html .='</th>';
         }
@@ -283,87 +334,112 @@ class Smartgrid {
             $html .= '<tr>'; 
             foreach ($this->_columns as $field_name=>$c)
             {
-                if(!isset($r[$field_name])){ $html .= '<td></td>'; continue; }
-                
-                $field_value = trim($r[$field_name]);
-                $field_value = (isset($c['strip_tag']) && $c['strip_tag'] == TRUE) ? strip_tags($field_value) : $field_value; 
-                $field_type = $c['type'];
-                $align = isset($c['align']) ? $c['align'] : '';
-                $html .= '<td align="'.$align.'">';
-                switch($field_type){
-                    case "progressbar":
-                        $field_maximum_value = isset($c['maximum_value']) ? $c['maximum_value'] : 100;
-                        $show_value = isset($c['show_value']) ? $c['show_value'] : false;
-                        $progress_value = ($field_value/$field_maximum_value * 100);
-                        if($show_value !== false){
-                            $html .= '<div class="clearfix">
-                                        <small class="pull-left">'.(($field_value > 0) ? $field_value : "").'</small>
-                                      </div>';    
-                        }
-                        $html .= '<div class="progress xs" style="height: 10px;" title="'.$field_value.'">
-                                    <div class="progress-bar" role="progressbar" aria-valuenow="'.$progress_value.'" aria-valuemin="0" aria-valuemax="'.$field_maximum_value.'" style="width: '.$progress_value.'%;"></div>
-                                  </div>';
-                        break;
-                    case "enum":
-                        $html .= (is_array($c['source']) && isset($c['source'][$field_value])) ? $c['source'][$field_value] : $field_value;
-                        break;
-                    case "image":
-                        $field_image_width = isset($c['image_width']) ? $c['image_width'] : '';
-                        $field_image_height = isset($c['image_height']) ? $c['image_height'] : '';
-                        $img_default = !empty($c['image_default']) ? '<img src="'.$c['image_default'].'" />': '';
-                        $html .= !empty($field_value) ? '<img src="'.$field_value.'" width="'.$field_image_width.'" height="'.$field_image_height.'" />' : $img_default;
-                        break;
-                    case "label":
-                        $html .= $field_value;
-                        break; 
-                    case "date":
-                        $format_to = isset($c['date_format']) ? $c['date_format'] : '';
-                        $format_from = isset($c['date_format_from']) ? $c['date_format_from'] : "Y-m-d H:i:s";
-                        $html .= !empty($format_to) ? $this->get_date_formated($field_value, $format_from, $format_to) : $field_value;
-                        break;
-                    case "relativedate":
-                        $this->CI->load->helper('date');
-                        $html .= $this->get_relative_date($field_value);
-                        break;
-                    case "html":
-                        $html .= '<code>'.htmlentities($field_value).'</code>';
-                        break;
-                    case "link":
-                        if(!empty($field_value)){
-                            $this->CI->load->library('parser');
-                            $field_href = isset($c['href']) ? $c['href'] : '';
-                            $field_href = isset($field_href) && !empty($field_href) ? $this->CI->parser->parse_string($field_href, $r, TRUE) : $field_value;
-                            $field_link_name = isset($c['link_name']) ? $c['link_name'] : '';
-                            $field_value = isset($field_link_name) && !empty($field_link_name) ? $field_link_name : $field_value;
-                            $field_target = isset($c['target']) ? $c['target'] : '';
-                            $html .= '<a href="'.$field_href.'" target="'.$field_target.'">'.$field_value.'</a>'; 
-                        }
-                        break;
-                    case "money": 
-                        $field_money_sign = isset($c['sign']) ? $c['sign'] : '';
-                        $field_decimal_places = isset($c['decimal_places']) ? $c['decimal_places'] : 2;
-                        $field_dec_separator = isset($c['decimal_separator']) ? $c['decimal_separator'] : '.';
-                        $field_thousands_separator = isset($c['thousands_separator']) ? $c['thousands_separator'] : ',';                        
-                        $html .= $field_money_sign.number_format($field_value, $field_decimal_places, $field_dec_separator, $field_thousands_separator);
-                        break;                     
-                    case "password":
-                    case "mask":
-                        $field_symbol = isset($c['symbol']) ? $c['symbol'] : '*';
-                        $html .= str_repeat($field_symbol, strlen($field_value));
-                        break;
-                    case "custom":
-                        $field_field_data = isset($c['field_data']) ? $c['field_data'] : ''; 
-                        $this->CI->load->library('parser');
-                        $html .= $this->CI->parser->parse_string($field_field_data, $r, TRUE);
-                        break;                    
-                    default:
-                        $html .= $field_value;
-                        break;
-                }
-                $html .= '</td>'; 
+                $html .= $this->render_row($field_name, $c, $r);
             }
             $html .= '</tr>';
         }
+        return $html;
+    }
+    
+    /**
+     * render_row
+     * 
+	 * Generate html for the grid data row
+	 *
+	 * @return	string
+	 */    
+    protected function render_row($field_name, $c, $r)
+    {
+        if(!isset($r[$field_name]) || empty($r[$field_name])){ 
+            return '<td></td>'; 
+        }
+                
+        $field_value = (isset($c['strip_tag']) && $c['strip_tag'] == TRUE) ? strip_tags($r[$field_name]) : trim($r[$field_name]); 
+        $field_type = $c['type'];
+        $align = isset($c['align']) ? $c['align'] : '';
+        $html = '<td align="'.$align.'">';
+        switch($field_type){
+            case "label":
+                $html .= $field_value;
+                break;
+            
+            case "link":
+                $this->CI->load->library('parser');
+                $field_href = isset($c['href']) && !empty($c['href']) ? $this->CI->parser->parse_string($c['href'], $r, TRUE) : $field_value;
+                $field_value = isset($c['link_name']) && !empty($c['link_name']) ? $c['link_name'] : $field_value;
+                $field_target = isset($c['target']) ? $c['target'] : '';
+                $html .= '<a href="'.$field_href.'" target="'.$field_target.'">'.$field_value.'</a>'; 
+                break;
+            
+            case "custom":
+                $this->CI->load->library('parser');
+                $html .= isset($c['field_data']) ? $this->CI->parser->parse_string($c['field_data'], $r, TRUE) : '';
+                break;
+            
+            case "image":
+                $field_image_width = isset($c['image_width']) ? $c['image_width'] : '';
+                $field_image_height = isset($c['image_height']) ? $c['image_height'] : '';
+                $img_default = !empty($c['image_default']) ? '<img src="'.$c['image_default'].'" />': '';
+                $html .= !empty($field_value) ? '<img src="'.$field_value.'" width="'.$field_image_width.'" height="'.$field_image_height.'" />' : $img_default;
+                break;
+            
+            case "html":
+                $html .= '<code>'.htmlentities($field_value).'</code>';
+                break;
+            
+            case "code":
+                $html .= '<pre>'.$field_value.'</pre>';
+                break;
+            
+            case "enum":
+                $html .= (is_array($c['source']) && isset($c['source'][$field_value])) ? $c['source'][$field_value] : $field_value;
+                break;
+            
+            case "progressbar":
+                $field_maximum_value = isset($c['maximum_value']) ? $c['maximum_value'] : 100;
+                $show_value = isset($c['show_value']) ? $c['show_value'] : false;
+                $style = isset($c['style']) ? $c['style'] : 'progress-bar-default';
+                $progress_value = ($field_value/$field_maximum_value * 100);
+                if($show_value !== false){
+                    $html .= '<div class="clearfix">
+                                <small class="pull-left">'.(($field_value > 0) ? $field_value : "").'</small>
+                              </div>';    
+                }
+                $html .= '<div class="progress  xs" style="height: 8px;" title="'.$field_value.'">
+                            <div class="progress-bar '.$style.'" role="progressbar" aria-valuenow="'.$progress_value.'" aria-valuemin="0" aria-valuemax="'.$field_maximum_value.'" style="width: '.$progress_value.'%;"></div>
+                          </div>';
+                break;
+                
+            case "date":
+                $format_to = isset($c['date_format']) ? $c['date_format'] : '';
+                $format_from = isset($c['date_format_from']) ? $c['date_format_from'] : "Y-m-d H:i:s";
+                $html .= !empty($format_to) ? $this->get_date_formated($field_value, $format_from, $format_to) : $field_value;
+                break;
+            
+            case "relativedate":
+                $this->CI->load->helper('date');
+                $html .= $this->get_relative_date($field_value);
+                break;
+            
+            case "money": 
+                $field_money_sign = isset($c['sign']) ? $c['sign'] : '';
+                $field_decimal_places = isset($c['decimal_places']) ? $c['decimal_places'] : 2;
+                $field_dec_separator = isset($c['decimal_separator']) ? $c['decimal_separator'] : '.';
+                $field_thousands_separator = isset($c['thousands_separator']) ? $c['thousands_separator'] : ',';                        
+                $html .= $field_money_sign.number_format($field_value, $field_decimal_places, $field_dec_separator, $field_thousands_separator);
+                break;  
+            
+            case "password":
+            case "mask":
+                $field_symbol = isset($c['symbol']) ? $c['symbol'] : '*';
+                $html .= str_repeat($field_symbol, strlen($field_value));
+                break;
+                                
+            default:
+                $html .= $field_value;
+                break;
+        }
+        $html .= '</td>'; 
         return $html;
     }
     
@@ -377,8 +453,14 @@ class Smartgrid {
 	 */    
     private function get_toolbar()
     {
-        $http_post_vars = $_POST;
-
+        $http_vars = NULL;
+//        if($this->_config_grid_form_method !== 'GET'){
+//            $http_vars = array_merge( $this->CI->input->post(NULL, TRUE), $this->CI->input->get(NULL, TRUE) );
+//        }else{
+//            $http_vars = array_merge( $this->CI->input->get(NULL, TRUE), $this->CI->input->post(NULL, TRUE) );
+//        }        
+        $http_vars = array_merge( $this->CI->input->get(NULL, TRUE), $this->CI->input->post(NULL, TRUE) );
+        
         $next_page_number = $this->_page_number + 1;
         $next_page_number = ($next_page_number > $this->_total_page) ? $this->_total_page : $next_page_number;
         
@@ -386,8 +468,11 @@ class Smartgrid {
         $previous_page_number = ($previous_page_number < 0) ? 0 : $previous_page_number;
         
         $paging_html = '';
-        $paging_html .= '<form method="POST" action="'.$this->_current_url.'">';
-        foreach ($http_post_vars as $key=>$val){
+        $paging_html .= '<form method="'.$this->_config_grid_form_method.'" action="'.$this->_current_url.'">';
+        foreach ($http_vars as $key=>$val){
+            if($key === $this->_config_grid_name.'page'){
+                continue;
+            }
             $paging_html .= '<input type="hidden" name="'.$key.'" value="'.$val.'" />';
         }
 
@@ -400,15 +485,38 @@ class Smartgrid {
         $paging_html .= '<div class="sg-toolbar pull-left">Showing '.($this->_page_row_start + 1).' to '.($this->_page_row_start + $this->_page_row_count).' of '.$this->_total_rows.'</div>';   
          
         $paging_html .= '<div class="btn-group pull-right" role="group">'; 
-        $paging_html .= '<button type="'.$prev_button_type.'" name="'.$this->_config_grid_name.'_page_number" value="1" class="btn btn-default btn-sm '.$css_btn_prev.'" title="Go to first page"><i class="glyphicon glyphicon-fast-backward"></i></button>'; 
-        $paging_html .= '<button type="'.$prev_button_type.'" name="'.$this->_config_grid_name.'_page_number" value="'.$previous_page_number.'" class="btn btn-default btn-sm '.$css_btn_prev.'" title="Go to previous page"><i class="glyphicon glyphicon-backward"></i></button>'; 
+        $paging_html .= '<button type="'.$prev_button_type.'" name="'.$this->_config_grid_name.'page" value="1" class="btn btn-default btn-sm '.$css_btn_prev.'" title="Go to first page"><i class="glyphicon glyphicon-fast-backward"></i></button>'; 
+        $paging_html .= '<button type="'.$prev_button_type.'" name="'.$this->_config_grid_name.'page" value="'.$previous_page_number.'" class="btn btn-default btn-sm '.$css_btn_prev.'" title="Go to previous page"><i class="glyphicon glyphicon-backward"></i></button>'; 
         $paging_html .= '<button type="button" class="btn btn-default btn-sm dropdown-toggle disabled" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">Page '.$this->_page_number.' of '.$this->_total_page.'</button>';
         
-        $paging_html .= '<button type="'.$next_button_type.'" name="'.$this->_config_grid_name.'_page_number" value="'.$next_page_number.'" class="btn btn-default btn-sm '.$css_btn_next.'" title="Go to next page"><i class="glyphicon glyphicon-forward"></i></button>'; 
-        $paging_html .= '<button type="'.$next_button_type.'" name="'.$this->_config_grid_name.'_page_number" value="'.$this->_total_page.'" class="btn btn-default btn-sm '.$css_btn_next.'" title="Go to last page"><i class="glyphicon glyphicon-fast-forward"></i></button>'; 
+        $paging_html .= '<button type="'.$next_button_type.'" name="'.$this->_config_grid_name.'page" value="'.$next_page_number.'" class="btn btn-default btn-sm '.$css_btn_next.'" title="Go to next page"><i class="glyphicon glyphicon-forward"></i></button>'; 
+        $paging_html .= '<button type="'.$next_button_type.'" name="'.$this->_config_grid_name.'page" value="'.$this->_total_page.'" class="btn btn-default btn-sm '.$css_btn_next.'" title="Go to last page"><i class="glyphicon glyphicon-fast-forward"></i></button>'; 
         $paging_html .= '</div>';
         $paging_html .= '</form>';
         return $paging_html;
+    }
+    
+    /**
+     * get_debug_info
+     * 
+	 * Generate html for the debug information
+	 *
+	 * @return	string
+	 */    
+    private function get_debug_info()
+    {
+        $debug_html = '<div class="panel panel-warning"><div class="panel-heading"><h3 class="panel-title">SmartGrid Debug Information</h3></div>';
+        $debug_html .= '<div class="panel-body">';
+        $debug_html .= '</div>';
+        
+        $debug_html .= '<ul class="list-group">';
+        $debug_html .= !empty($this->_sql) ? '<li class="list-group-item ">SQL: <code>'.$this->_sql.'</code></li>' : '';
+        $debug_html .= (isset($this->_debug_log['data_start_time']) && isset($this->_debug_log['data_end_time'])) ? '<li class="list-group-item ">Data Retrival Time: <span class="label label-info">'.sprintf('%f', round((float)$this->_debug_log['data_end_time'] - (float)$this->_debug_log['data_start_time'], 6)).'</span> sec.</li>' : '';
+        $debug_html .= (isset($this->_debug_log['render_start_time']) && isset($this->_debug_log['render_end_time'])) ? '<li class="list-group-item ">Grid Render Time: <span class="label label-info">'.sprintf('%f', round((float)$this->_debug_log['render_end_time'] - (float)$this->_debug_log['render_start_time'], 6)).'</span> sec.</li>' : '';
+        $debug_html .= (isset($this->_debug_log['grid_start_time']) && isset($this->_debug_log['grid_end_time'])) ? '<li class="list-group-item ">Total Time: <span class="label label-info">'.sprintf('%f', round((float)$this->_debug_log['grid_end_time'] - (float)$this->_debug_log['grid_start_time'], 6)).'</span> sec.</li>' : '';
+        $debug_html .= '</ul>';
+        $debug_html .= '</div></div>'; 
+        return $debug_html;
     }
     
     # UTILITY METHODS
@@ -426,7 +534,7 @@ class Smartgrid {
     {
         return $this->str_replace_first("SELECT", "SELECT SQL_CALC_FOUND_ROWS ", $sql);
     }
-    
+                    
     /**
      * str_replace_first
      * 
@@ -510,5 +618,48 @@ class Smartgrid {
         $date_array = date_parse_from_format ($format_from, $date_str);
         $timestamp = mktime($date_array['hour'], $date_array['minute'], $date_array['second'], $date_array['month'], $date_array['day'], $date_array['year']);
         return date($format_to, $timestamp);
+    }
+    
+    /**
+     * set_debug_time
+     * 
+	 * Set the current microtime to the debug array
+	 *
+	 * @param	string
+	 * @return	string
+	 */
+    private function set_debug_time($key)
+    {
+        if($this->_config_debug_mode === true){
+            $this->_debug_log[$key]  = $this->get_microtime();    
+        }
+    }
+    
+    /**
+     * get_microtime
+     * 
+	 * Returns the current Unix timestamp with microseconds 
+	 *
+	 * @return	float
+	 */    
+    function get_microtime()
+    {
+        list($usec, $sec) = explode(" ", microtime());
+        return ((float)$usec + (float)$sec);
+    }
+    
+    /**
+     * get_microtime_formated
+     * 
+	 * Format microtime to datetime
+	 *
+	 * @return	datetime
+	 */    
+    function get_microtime_formated($microtime)
+    {
+        //list($usec, $sec) = explode(' ', microtime()); //split the microtime on space, with two tokens $usec and $sec
+        list($sec, $usec) = explode('.', $microtime);
+        $usec = str_replace("0.", ".", $usec); //remove the leading '0.' from usec
+        return date('H:i:s', $sec) . round($usec, 6);
     }
 }
